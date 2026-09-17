@@ -647,10 +647,14 @@ def _has_multimodal_content(messages: list[Any]) -> bool:
 
 
 def _get_multimodal_processor():
+    from atom.utils.model_hub import get_model_metadata_path
+
     global processor
     if processor is None:
         logger.info(f"Loading multimodal processor from {model_name}...")
-        processor = AutoProcessor.from_pretrained(model_name, trust_remote_code=True)
+        processor = AutoProcessor.from_pretrained(
+            get_model_metadata_path(model_name), trust_remote_code=True
+        )
     return processor
 
 

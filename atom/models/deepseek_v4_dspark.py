@@ -246,13 +246,9 @@ def _ckpt_index_path(model_path: str) -> str:
     the bare repo id on any runner without a local model mirror mounted. Only
     the index is wanted here, so fetch that one file, never the shards.
     """
-    import os
+    from atom.utils.model_hub import get_model_file
 
-    if os.path.isdir(model_path):
-        return os.path.join(model_path, "model.safetensors.index.json")
-    from huggingface_hub import hf_hub_download
-
-    return hf_hub_download(model_path, "model.safetensors.index.json")
+    return get_model_file(model_path, "model.safetensors.index.json")
 
 
 def _count_dspark_stages(model_path, default: int = 0) -> int:

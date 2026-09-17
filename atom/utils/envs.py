@@ -45,6 +45,14 @@ def _positive_float_env(name: str, default: str) -> float:
 
 
 environment_variables: dict[str, Callable[[], Any]] = {
+    # Model hub selection. Keep the historical benchmark flag as an alias;
+    # an explicit ATOM setting takes precedence, including an explicit false.
+    "ATOM_USE_MODELSCOPE": lambda: os.getenv(
+        "ATOM_USE_MODELSCOPE", os.getenv("VLLM_USE_MODELSCOPE", "False")
+    )
+    .strip()
+    .lower()
+    in ("1", "true"),
     # Protect reused KV prefixes from one-off prefill scans. Opt-in.
     "ATOM_PREFIX_CACHE_POLICY": lambda: os.getenv("ATOM_PREFIX_CACHE_POLICY", "lru"),
     "ATOM_PREFIX_CACHE_PROTECTED_RATIO": lambda: float(
@@ -788,7 +796,9 @@ def __getattr__(name: str):
 #   FLA_GDN_FIX_BT, FLA_USE_CUDA_GRAPH,
 #   FLA_TRIL_PRECISION             — FLA ops library
 # VLLM_PP_LAYER_PARTITION         — vLLM legacy (still active in models/utils.py)
-# VLLM_USE_MODELSCOPE             — vLLM legacy (benchmarks)
+# VLLM_USE_MODELSCOPE             — fallback alias for ATOM_USE_MODELSCOPE
+# MODELSCOPE_CACHE                — ModelScope SDK cache root
+# HF_HUB_OFFLINE                  — cached-only downloads on either hub
 # LMCACHE_EC_PIN_TIMEOUT_SEC      — LMCache library's own source-pin timeout;
 #                                   read in kv_transfer/offload/_offload_common.py
 #                                   (offload_save_abandon_timeout_s) to derive the

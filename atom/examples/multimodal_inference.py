@@ -10,6 +10,7 @@ from atom import SamplingParams
 from atom.model_engine.arg_utils import EngineArgs
 from atom.multimodal.processing import prepare_multimodal_inputs
 from atom.utils.arg_parser import FlexibleArgumentParser
+from atom.utils.model_hub import get_model_metadata_path
 
 parser = FlexibleArgumentParser(
     formatter_class=argparse.RawTextHelpFormatter,
@@ -58,7 +59,9 @@ def main():
     args.cudagraph_capture_sizes = "[1]"
 
     # Load processor (handles media preprocessing and chat template)
-    processor = AutoProcessor.from_pretrained(args.model, trust_remote_code=True)
+    processor = AutoProcessor.from_pretrained(
+        get_model_metadata_path(args.model), trust_remote_code=True
+    )
 
     # The nth image marker refers to the nth entry in multi_modal_data["image"].
     conversation = [

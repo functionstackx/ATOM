@@ -8,6 +8,7 @@ from transformers import AutoTokenizer
 from atom import SamplingParams
 from atom.model_engine.arg_utils import EngineArgs
 from atom.utils.arg_parser import FlexibleArgumentParser
+from atom.utils.model_hub import get_model_metadata_path
 
 parser = FlexibleArgumentParser(
     formatter_class=argparse.RawTextHelpFormatter,
@@ -55,7 +56,7 @@ def main():
     engine_args = EngineArgs.from_cli_args(args)
     llm = engine_args.create_engine()
 
-    tokenizer = AutoTokenizer.from_pretrained(args.model)
+    tokenizer = AutoTokenizer.from_pretrained(get_model_metadata_path(args.model))
 
     if args.random_input:
         vocab_size = tokenizer.vocab_size

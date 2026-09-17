@@ -17,11 +17,13 @@ from atom.model_engine.sequence import Sequence
 from atom.multimodal.registry import get_mrope_input_positions
 from atom.sampling_params import SamplingParams
 from atom.utils import envs
+from atom.utils.model_hub import get_model_metadata_path
 
 logger = logging.getLogger("atom")
 
 
 def _load_tokenizer(model: str, trust_remote_code: bool = False):
+    model = get_model_metadata_path(model)
     tokenizer = AutoTokenizer.from_pretrained(
         model, use_fast=True, trust_remote_code=trust_remote_code
     )

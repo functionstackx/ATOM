@@ -26,10 +26,10 @@ from tqdm import tqdm
 from transformers.utils import SAFE_WEIGHTS_INDEX_NAME
 
 from atom.model_loader.weight_utils import (
-    download_weights_from_hf,
     filter_duplicate_safetensors_files,
 )
 from atom.utils import envs
+from atom.utils.model_hub import download_model_weights
 
 logger = logging.getLogger("atom")
 
@@ -240,7 +240,7 @@ def safetensors_weights_iterator(
     path = (
         model_name_or_path
         if os.path.isdir(model_name_or_path)
-        else download_weights_from_hf(
+        else download_model_weights(
             model_name_or_path, None, ["*.safetensors"], ignore_patterns=["original/*"]
         )
     )

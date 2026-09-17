@@ -17,6 +17,45 @@ docker run -it --device=/dev/kfd --device=/dev/dri \
   rocm/atom:latest
 ```
 
+## Download models from ModelScope
+
+Install the optional SDK, then enable ModelScope for native ATOM serving:
+
+```bash
+pip install 'modelscope>=1.18.1'
+# From a source checkout, pip install -e '.[modelscope]' also installs the extra.
+ATOM_USE_MODELSCOPE=1 python -m atom.entrypoints.openai_server \
+  --model Qwen/Qwen3-0.6B
+```
+
+`ATOM_USE_MODELSCOPE` accepts `1` or `true` (case-insensitive). Hugging Face
+remains the default. The existing benchmark flag `VLLM_USE_MODELSCOPE` is a
+fallback alias; an explicit `ATOM_USE_MODELSCOPE` value takes precedence.
+Use the same setting in the benchmark client if it loads a remote tokenizer.
+
+Config, generation config, tokenizer, multimodal processor, custom chat encoder
+and speculative-draft config reads resolve to local ModelScope snapshots without
+downloading weights. The native weight loader downloads safetensors and their
+shard index separately. Local paths bypass ModelScope, including directories
+cloned from ModelScope with Git/LFS. Model IDs returned by the server are not
+rewritten to cache paths. Remote code still requires the existing trust setting.
+
+Native callers use the backend-neutral wrappers in `atom.utils.model_hub`:
+`get_model_metadata_path`, `download_model_weights`, `get_model_file` and
+`get_cached_model_path`. That module contains the backend selector and both
+hub adapters; callers do not inspect `ATOM_USE_MODELSCOPE` or import the
+ModelScope SDK. The legacy `download_weights_from_hf` function delegates to
+the shared weight-download wrapper for compatibility.
+
+The SDK uses its default cache or `MODELSCOPE_CACHE`. Set `HF_HUB_OFFLINE=1`
+before starting ATOM to use cached files only; missing cached files raise an
+error rather than falling back to Hugging Face. A directory containing only
+metadata is not treated as a complete checkpoint.
+
+For the vLLM and SGLang plugin frontends, use their own hub settings
+(`VLLM_USE_MODELSCOPE` and `SGLANG_USE_MODELSCOPE`, respectively). This option
+covers ATOM's native LLM path, not its separate diffusion pipelines.
+
 ## Supported models
 
 | Model | Type | Precision | TP | Recipe |
