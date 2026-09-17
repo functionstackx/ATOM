@@ -17,11 +17,9 @@ import os
 import pathlib
 from typing import Any
 
-from huggingface_hub import snapshot_download
 from jinja2 import TemplateError
 
-from atom.utils import envs
-from atom.utils.modelscope import get_model_metadata_path
+from atom.utils.model_hub import get_cached_model_path
 
 from .chat_encoder_adapters import (
     MessageEncoderAdapter,
@@ -32,14 +30,7 @@ logger = logging.getLogger("atom")
 
 
 def _resolve_model_path(model: str) -> str:
-    if os.path.isdir(model):
-        return model
-    if envs.ATOM_USE_MODELSCOPE:
-        return get_model_metadata_path(model)
-    try:
-        return snapshot_download(model, local_files_only=True, allow_patterns=[])
-    except Exception:
-        return model
+    return get_cached_model_path(model)
 
 
 def _load_encoder_from_dir(model_path: str) -> MessageEncoderAdapter | None:

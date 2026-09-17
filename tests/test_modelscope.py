@@ -18,12 +18,12 @@ from transformers import PreTrainedTokenizerFast
 
 from atom import config as atom_config
 from atom.model_loader import weight_utils
-from atom.utils import envs
-from atom.utils.modelscope import (
+from atom.utils import envs, model_hub
+from atom.utils.model_hub import (
     WEIGHT_PATTERNS,
+    download_model_snapshot,
     get_lock,
     get_model_metadata_path,
-    maybe_download_from_modelscope,
 )
 
 
@@ -65,7 +65,7 @@ def test_default_and_legacy_alias(monkeypatch):
 
 def test_disabled_does_not_import_sdk(monkeypatch):
     monkeypatch.setitem(sys.modules, "modelscope.hub.snapshot_download", None)
-    assert maybe_download_from_modelscope("org/model") == "org/model"
+    assert get_model_metadata_path("org/model") == "org/model"
 
 
 def test_local_directory_does_not_import_sdk(monkeypatch, tmp_path):
@@ -78,12 +78,12 @@ def test_missing_sdk_has_install_hint(monkeypatch):
     monkeypatch.setenv("ATOM_USE_MODELSCOPE", "1")
     monkeypatch.setitem(sys.modules, "modelscope.hub.snapshot_download", None)
     with pytest.raises(ImportError, match="pip install"):
-        maybe_download_from_modelscope("org/model")
+        download_model_snapshot("org/model")
 
 
 def test_download_arguments_and_lock(ms_download, tmp_path):
     cache_dir = tmp_path / "new" / "cache"
-    maybe_download_from_modelscope(
+    download_model_snapshot(
         "org/model",
         cache_dir=str(cache_dir),
         revision="release-1",
@@ -115,7 +115,7 @@ def test_download_arguments_and_lock(ms_download, tmp_path):
 )
 def test_offline_forwarded(ms_download, monkeypatch, offline, explicit):
     monkeypatch.setattr(huggingface_hub.constants, "HF_HUB_OFFLINE", offline)
-    maybe_download_from_modelscope("org/model", local_files_only=explicit)
+    download_model_snapshot("org/model", local_files_only=explicit)
     assert ms_download.call_args.kwargs["local_files_only"] is True
 
 
@@ -129,15 +129,15 @@ def test_partial_cache_still_resolves_weights(ms_download, tmp_path, monkeypatch
     (tmp_path / "org" / "model").mkdir(parents=True)
     monkeypatch.setenv("MODELSCOPE_CACHE", str(tmp_path))
     get_model_metadata_path("org/model")
-    maybe_download_from_modelscope("org/model", allow_patterns=["*.safetensors"])
+    download_model_snapshot("org/model", allow_patterns=["*.safetensors"])
     assert ms_download.call_count == 2
     assert ms_download.call_args.kwargs["allow_patterns"] == ["*.safetensors"]
 
 
 def test_failures_do_not_fall_back_to_hf(ms_download, monkeypatch):
     hf = Mock(side_effect=AssertionError("Hugging Face must not be called"))
-    monkeypatch.setattr(weight_utils, "HfFileSystem", hf)
-    monkeypatch.setattr(weight_utils, "snapshot_download", hf)
+    monkeypatch.setattr(model_hub, "HfFileSystem", hf)
+    monkeypatch.setattr(model_hub, "snapshot_download", hf)
     ms_download.side_effect = FileNotFoundError("offline cache miss")
     with pytest.raises(FileNotFoundError, match="offline cache miss"):
         weight_utils.download_weights_from_hf("org/model", None, ["*.safetensors"])
@@ -147,8 +147,8 @@ def test_failures_do_not_fall_back_to_hf(ms_download, monkeypatch):
 def test_weight_download_routes_before_hf(ms_download, monkeypatch, tmp_path):
     (tmp_path / "model.safetensors").touch()
     hf = Mock(side_effect=AssertionError("Hugging Face must not be called"))
-    monkeypatch.setattr(weight_utils, "HfFileSystem", hf)
-    monkeypatch.setattr(weight_utils, "snapshot_download", hf)
+    monkeypatch.setattr(model_hub, "HfFileSystem", hf)
+    monkeypatch.setattr(model_hub, "snapshot_download", hf)
     assert weight_utils.download_weights_from_hf(
         "org/model", None, ["*.safetensors"], "release-1", ["original/*"]
     ) == str(tmp_path)
@@ -171,9 +171,9 @@ def test_metadata_only_weight_cache_is_rejected(ms_download, tmp_path, monkeypat
 def test_hugging_face_default_unchanged(monkeypatch, tmp_path):
     fs = Mock()
     fs.ls.return_value = ["org/model/model.safetensors"]
-    monkeypatch.setattr(weight_utils, "HfFileSystem", Mock(return_value=fs))
+    monkeypatch.setattr(model_hub, "HfFileSystem", Mock(return_value=fs))
     download = Mock(return_value=str(tmp_path))
-    monkeypatch.setattr(weight_utils, "snapshot_download", download)
+    monkeypatch.setattr(model_hub, "snapshot_download", download)
     assert weight_utils.download_weights_from_hf(
         "org/model", None, ["*.safetensors"], revision="main"
     ) == str(tmp_path)
@@ -285,6 +285,104 @@ def test_real_weight_iterator_uses_index(ms_download, tmp_path, monkeypatch):
 
 def test_sdk_can_be_absent_during_module_import(monkeypatch):
     monkeypatch.setitem(sys.modules, "modelscope.hub.snapshot_download", None)
-    import atom.utils.modelscope as module
+    import atom.utils.model_hub as module
 
     importlib.reload(module)
+
+
+def test_backend_selection_is_confined_to_shared_module():
+    from pathlib import Path
+
+    root = Path(model_hub.__file__).parents[1]
+    offenders = [
+        str(path.relative_to(root))
+        for path in root.rglob("*.py")
+        if path.name not in {"envs.py", "model_hub.py"}
+        and "ATOM_USE_MODELSCOPE" in path.read_text()
+    ]
+    assert offenders == []
+
+
+def test_snapshot_wrapper_uses_hf_when_disabled(monkeypatch, tmp_path):
+    download = Mock(return_value=str(tmp_path))
+    monkeypatch.setattr(model_hub, "snapshot_download", download)
+    monkeypatch.setitem(sys.modules, "modelscope.hub.snapshot_download", None)
+    assert download_model_snapshot(
+        "org/model", revision="release-1", allow_patterns=["config.json"]
+    ) == str(tmp_path)
+    download.assert_called_once_with(
+        "org/model",
+        revision="release-1",
+        allow_patterns=["config.json"],
+        local_files_only=False,
+    )
+
+
+@pytest.mark.parametrize("backend", ["0", "1"])
+def test_all_local_wrappers_bypass_hubs(monkeypatch, tmp_path, backend):
+    monkeypatch.setenv("ATOM_USE_MODELSCOPE", backend)
+    monkeypatch.setattr(
+        model_hub, "_get_backend", Mock(side_effect=AssertionError("local path"))
+    )
+    path = str(tmp_path)
+    assert get_model_metadata_path(path) == path
+    assert download_model_snapshot(path) == path
+    assert model_hub.download_model_weights(path, None, ["*.safetensors"]) == path
+    assert model_hub.get_cached_model_path(path) == path
+    assert model_hub.get_model_file(path, "config.json") == str(
+        tmp_path / "config.json"
+    )
+
+
+def test_model_file_uses_hf_when_disabled(monkeypatch, tmp_path):
+    download = Mock(return_value=str(tmp_path / "model.safetensors.index.json"))
+    monkeypatch.setattr(model_hub, "hf_hub_download", download)
+    result = model_hub.get_model_file(
+        "org/model", "model.safetensors.index.json", revision="release-1"
+    )
+    assert result == download.return_value
+    download.assert_called_once_with(
+        "org/model",
+        "model.safetensors.index.json",
+        revision="release-1",
+        local_files_only=False,
+    )
+
+
+def test_model_file_uses_modelscope_without_hf(ms_download, monkeypatch, tmp_path):
+    path = tmp_path / "model.safetensors.index.json"
+    path.write_text('{"weight_map": {}}')
+    download = Mock(side_effect=AssertionError("no HF fallback"))
+    monkeypatch.setattr(model_hub, "hf_hub_download", download)
+    assert model_hub.get_model_file("org/model", path.name) == str(path)
+    assert ms_download.call_args.kwargs["allow_patterns"] == [path.name]
+    download.assert_not_called()
+
+
+def test_missing_modelscope_file_is_rejected(ms_download):
+    with pytest.raises(FileNotFoundError, match="missing from snapshot"):
+        model_hub.get_model_file("org/model", "missing.json")
+
+
+def test_cached_hf_path_is_local_only(monkeypatch, tmp_path):
+    download = Mock(return_value=str(tmp_path))
+    monkeypatch.setattr(model_hub, "snapshot_download", download)
+    assert model_hub.get_cached_model_path("org/model") == str(tmp_path)
+    download.assert_called_once_with(
+        "org/model", local_files_only=True, allow_patterns=[]
+    )
+    download.side_effect = FileNotFoundError
+    assert model_hub.get_cached_model_path("org/model") == "org/model"
+
+
+def test_hf_offline_weights_skip_listing(monkeypatch, tmp_path):
+    monkeypatch.setattr(huggingface_hub.constants, "HF_HUB_OFFLINE", True)
+    listing = Mock(side_effect=AssertionError("offline"))
+    download = Mock(return_value=str(tmp_path))
+    monkeypatch.setattr(model_hub, "HfFileSystem", listing)
+    monkeypatch.setattr(model_hub, "snapshot_download", download)
+    assert model_hub.download_model_weights(
+        "org/model", None, ["*.safetensors"]
+    ) == str(tmp_path)
+    assert download.call_args.kwargs["local_files_only"] is True
+    listing.assert_not_called()

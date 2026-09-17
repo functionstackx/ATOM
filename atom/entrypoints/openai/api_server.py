@@ -647,7 +647,7 @@ def _has_multimodal_content(messages: list[Any]) -> bool:
 
 
 def _get_multimodal_processor():
-    from atom.utils.modelscope import get_model_metadata_path
+    from atom.utils.model_hub import get_model_metadata_path
 
     global processor
     if processor is None:

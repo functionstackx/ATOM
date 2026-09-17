@@ -40,6 +40,13 @@ shard index separately. Local paths bypass ModelScope, including directories
 cloned from ModelScope with Git/LFS. Model IDs returned by the server are not
 rewritten to cache paths. Remote code still requires the existing trust setting.
 
+Native callers use the backend-neutral wrappers in `atom.utils.model_hub`:
+`get_model_metadata_path`, `download_model_weights`, `get_model_file` and
+`get_cached_model_path`. That module contains the backend selector and both
+hub adapters; callers do not inspect `ATOM_USE_MODELSCOPE` or import the
+ModelScope SDK. The legacy `download_weights_from_hf` function delegates to
+the shared weight-download wrapper for compatibility.
+
 The SDK uses its default cache or `MODELSCOPE_CACHE`. Set `HF_HUB_OFFLINE=1`
 before starting ATOM to use cached files only; missing cached files raise an
 error rather than falling back to Hugging Face. A directory containing only

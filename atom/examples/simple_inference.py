@@ -10,7 +10,7 @@ from atom.entrypoints.openai.chat_encoders import (
 )
 from atom.model_engine.arg_utils import EngineArgs
 from atom.utils.arg_parser import FlexibleArgumentParser
-from atom.utils.modelscope import get_model_metadata_path
+from atom.utils.model_hub import get_model_metadata_path
 from transformers import AutoTokenizer
 
 parser = FlexibleArgumentParser(

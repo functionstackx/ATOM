@@ -24,7 +24,7 @@ from atom.quant_spec import (
 )
 from atom.utils import envs, get_open_port
 from atom.utils.distributed.utils import stateless_init_torch_distributed_process_group
-from atom.utils.modelscope import get_model_metadata_path
+from atom.utils.model_hub import get_model_metadata_path
 
 if TYPE_CHECKING:
     # Annotation only. Importing AITER here would put a GPU kernel build behind

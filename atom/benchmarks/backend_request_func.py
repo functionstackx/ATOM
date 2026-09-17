@@ -13,7 +13,7 @@ import aiohttp
 from tqdm.asyncio import tqdm
 from transformers import AutoTokenizer, PreTrainedTokenizer, PreTrainedTokenizerFast
 
-from atom.utils.modelscope import get_model_metadata_path
+from atom.utils.model_hub import get_model_metadata_path
 
 AIOHTTP_TIMEOUT = aiohttp.ClientTimeout(total=6 * 60 * 60)
 

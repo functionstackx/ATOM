@@ -10,7 +10,7 @@ from atom import SamplingParams
 from atom.model_engine.arg_utils import EngineArgs
 from atom.multimodal.processing import prepare_multimodal_inputs
 from atom.utils.arg_parser import FlexibleArgumentParser
-from atom.utils.modelscope import get_model_metadata_path
+from atom.utils.model_hub import get_model_metadata_path
 
 parser = FlexibleArgumentParser(
     formatter_class=argparse.RawTextHelpFormatter,
