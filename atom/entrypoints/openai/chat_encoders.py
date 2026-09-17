@@ -20,6 +20,9 @@ from typing import Any
 from huggingface_hub import snapshot_download
 from jinja2 import TemplateError
 
+from atom.utils import envs
+from atom.utils.modelscope import get_model_metadata_path
+
 from .chat_encoder_adapters import (
     MessageEncoderAdapter,
     build_message_encoder_adapter,
@@ -31,6 +34,8 @@ logger = logging.getLogger("atom")
 def _resolve_model_path(model: str) -> str:
     if os.path.isdir(model):
         return model
+    if envs.ATOM_USE_MODELSCOPE:
+        return get_model_metadata_path(model)
     try:
         return snapshot_download(model, local_files_only=True, allow_patterns=[])
     except Exception:

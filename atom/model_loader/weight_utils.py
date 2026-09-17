@@ -4,28 +4,22 @@
 # This code is adapted from https://github.com/ROCm/vllm/blob/main/vllm/model_executor/model_loader/weight_utils.py
 
 import fnmatch
-import hashlib
 import json
 import logging
 import os
-import tempfile
 import time
-from pathlib import Path
+from glob import glob
 from typing import Any, List, Optional, Union
 
-import filelock
 import huggingface_hub.constants
 import torch
 from huggingface_hub import HfFileSystem, snapshot_download
 from tqdm.auto import tqdm
 
-logger = logging.getLogger(__name__)
+from atom.utils import envs
+from atom.utils.modelscope import get_lock, maybe_download_from_modelscope
 
-# use system-level temp directory for file locks, so that multiple users
-# can share the same lock without error.
-# lock files in the temp directory will be automatically deleted when the
-# system reboots, so users will not complain about annoying lock files
-temp_dir = tempfile.gettempdir()
+logger = logging.getLogger(__name__)
 
 
 def enable_hf_transfer():
@@ -49,19 +43,6 @@ class DisabledTqdm(tqdm):
         super().__init__(*args, **kwargs)
 
 
-def get_lock(model_name_or_path: Union[str, Path], cache_dir: Optional[str] = None):
-    lock_dir = cache_dir or temp_dir
-    model_name_or_path = str(model_name_or_path)
-    os.makedirs(os.path.dirname(lock_dir), exist_ok=True)
-    model_name = model_name_or_path.replace("/", "-")
-    hash_name = hashlib.sha256(model_name.encode()).hexdigest()
-    # add hash to avoid conflict with old users' lock files
-    lock_file_name = hash_name + model_name + ".lock"
-    # mode 0o666 is required for the filelock to be shared across users
-    lock = filelock.FileLock(os.path.join(lock_dir, lock_file_name), mode=0o666)
-    return lock
-
-
 def download_weights_from_hf(
     model_name_or_path: str,
     cache_dir: Optional[str],
@@ -69,7 +50,7 @@ def download_weights_from_hf(
     revision: Optional[str] = None,
     ignore_patterns: Optional[Union[str, list[str]]] = None,
 ) -> str:
-    """Download model weights from Hugging Face Hub.
+    """Download model weights from Hugging Face Hub, or ModelScope when enabled.
 
     Args:
         model_name_or_path (str): The model name or path.
@@ -86,6 +67,27 @@ def download_weights_from_hf(
     Returns:
         str: The path to the downloaded model weights.
     """
+    if envs.ATOM_USE_MODELSCOPE:
+        # Resolve before HfFileSystem is constructed; ModelScope-only repo IDs
+        # must never be queried on Hugging Face. Include the shard index used
+        # by filter_duplicate_safetensors_files.
+        folder = maybe_download_from_modelscope(
+            model_name_or_path,
+            cache_dir=cache_dir,
+            revision=revision,
+            allow_patterns=[*allow_patterns, "*.safetensors.index.json"],
+            ignore_patterns=ignore_patterns,
+        )
+        # Some ModelScope SDK versions return the snapshot directory in
+        # offline mode without checking whether the requested files exist.
+        # A metadata-only cache must not produce an empty weight iterator.
+        if not any(glob(os.path.join(folder, pattern)) for pattern in allow_patterns):
+            raise RuntimeError(
+                f"No model weights matching {allow_patterns} found in {folder}. "
+                "The ModelScope cache may contain only metadata; download the "
+                "weights before enabling HF_HUB_OFFLINE."
+            )
+        return folder
     local_only = huggingface_hub.constants.HF_HUB_OFFLINE
     if not local_only:
         # Before we download we look at that is available:

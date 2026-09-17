@@ -248,6 +248,11 @@ def _ckpt_index_path(model_path: str) -> str:
     """
     import os
 
+    from atom.utils.modelscope import maybe_download_from_modelscope
+
+    model_path = maybe_download_from_modelscope(
+        model_path, allow_patterns=["model.safetensors.index.json"]
+    )
     if os.path.isdir(model_path):
         return os.path.join(model_path, "model.safetensors.index.json")
     from huggingface_hub import hf_hub_download

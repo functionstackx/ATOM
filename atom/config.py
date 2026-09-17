@@ -24,6 +24,7 @@ from atom.quant_spec import (
 )
 from atom.utils import envs, get_open_port
 from atom.utils.distributed.utils import stateless_init_torch_distributed_process_group
+from atom.utils.modelscope import get_model_metadata_path
 
 if TYPE_CHECKING:
     # Annotation only. Importing AITER here would put a GPU kernel build behind
@@ -682,6 +683,7 @@ _PLUGIN_SUPPORTED_MULTIMODAL_MODELS: set[str] = {
 
 
 def get_hf_config(model: str, trust_remote_code: bool = False) -> PretrainedConfig:
+    model = get_model_metadata_path(model)
     config_dict, _ = PretrainedConfig.get_config_dict(
         model,
     )
@@ -795,6 +797,7 @@ def get_hf_config(model: str, trust_remote_code: bool = False) -> PretrainedConf
 
 
 def get_generation_config(model: str) -> GenerationConfig:
+    model = get_model_metadata_path(model)
     try:
         return GenerationConfig.from_pretrained(
             model,
